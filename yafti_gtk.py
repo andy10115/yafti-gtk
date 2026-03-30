@@ -49,29 +49,19 @@ def show_error_dialog(parent, title, message):
 
 
 def setup_theme():
-    """Apply dark theme at startup."""
+    """Initialize GTK metadata."""
     GLib.set_prgname(APP_ID)
-
-    # Set dark theme
-    os.environ['GTK_THEME'] = 'Adwaita:dark'
-    
     Gtk.init([])
 
     try:
         Gtk.Window.set_default_icon_name(APP_ID)
     except Exception as e:
         print(f"Warning: Could not set app icon: {e}")
-    
-    settings = Gtk.Settings.get_default()
-    if settings:
-        settings.set_property('gtk-application-prefer-dark-theme', True)
 
 
 def build_child_environment():
-    """Avoid leaking forced GTK theme overrides into launched apps."""
-    child_env = os.environ.copy()
-    child_env.pop('GTK_THEME', None)
-    return child_env
+    """Build the environment used for child processes."""
+    return os.environ.copy()
 
 
 def build_terminal_command(script):
