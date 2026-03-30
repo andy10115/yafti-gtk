@@ -6,7 +6,6 @@ Yafti GTK - A simple GTK GUI for running scripts from yafti.yml
 import gi
 import yaml
 import subprocess
-import os
 import sys
 
 gi.require_version('Gtk', '3.0')
