@@ -272,27 +272,36 @@ class YaftiGTK(Gtk.Window):
         """Handle action button click - run script in terminal window"""
         if not script:
             return
+
+        clean_script = script.strip()
+        if not clean_script:
+            return
+
         # Always try a terminal; if unavailable show an error
-        if self.launch_terminal(script.strip()):
+        error_message = self.launch_terminal(clean_script)
+        if error_message is None:
             return
 
         show_error_dialog(
             self,
             "No terminal available",
-            "Could not open a terminal automatically.\n\nPlease make sure a default terminal launcher is available, or run the following command manually:\n\n" + script
+            "Could not open a terminal automatically.\n\n"
+            + error_message
+            + "\n\nYou can also run the following command manually:\n\n"
+            + clean_script
         )
 
     def launch_terminal(self, script):
-        """Attempt to run a command in a terminal. Returns True if launched."""
+        """Attempt to run a command in a terminal. Returns None on success."""
         try:
             subprocess.Popen(build_terminal_command(script), env=build_child_environment())
-            return True
+            return None
         except FileNotFoundError:
-            print("Could not open a terminal (xdg-terminal-exec was not found).")
+            return "The default terminal launcher (xdg-terminal-exec) was not found."
         except Exception as e:
-            print(f"Terminal launch failed: {e}")
+            return f"Terminal launch failed: {e}"
 
-        return False
+        return "Terminal launch failed for an unknown reason."
     
     
 
