@@ -48,8 +48,8 @@ def show_error_dialog(parent, title, message):
     dialog.destroy()
 
 
-def setup_theme():
-    """Initialize GTK metadata."""
+def initialize_gtk():
+    """Initialize GTK and application metadata."""
     GLib.set_prgname(APP_ID)
     Gtk.init([])
 
@@ -278,7 +278,7 @@ class YaftiGTK(Gtk.Window):
     def launch_terminal(self, script):
         """Attempt to run a command in a terminal. Returns None on success."""
         try:
-            subprocess.Popen(build_terminal_command(script), env=os.environ.copy())
+            subprocess.Popen(build_terminal_command(script))
             return None
         except FileNotFoundError:
             return "The default terminal launcher (xdg-terminal-exec) was not found."
@@ -297,8 +297,8 @@ def main():
     
     config_file = sys.argv[1]
     
-    # Apply theme before creating window
-    setup_theme()
+    # Initialize GTK before creating the window.
+    initialize_gtk()
 
     # Create and show window
     win = YaftiGTK(config_file)
