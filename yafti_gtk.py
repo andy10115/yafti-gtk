@@ -58,12 +58,6 @@ def setup_theme():
     except Exception as e:
         print(f"Warning: Could not set app icon: {e}")
 
-
-def build_child_environment():
-    """Build the environment used for child processes."""
-    return os.environ.copy()
-
-
 def build_terminal_command(script):
     """Return the default terminal launcher command."""
     return [
@@ -284,7 +278,7 @@ class YaftiGTK(Gtk.Window):
     def launch_terminal(self, script):
         """Attempt to run a command in a terminal. Returns None on success."""
         try:
-            subprocess.Popen(build_terminal_command(script), env=build_child_environment())
+            subprocess.Popen(build_terminal_command(script), env=os.environ.copy())
             return None
         except FileNotFoundError:
             return "The default terminal launcher (xdg-terminal-exec) was not found."
