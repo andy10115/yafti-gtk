@@ -300,8 +300,6 @@ class YaftiGTK(Gtk.Window):
             return "The default terminal launcher (xdg-terminal-exec) was not found."
         except Exception as e:
             return f"Terminal launch failed: {e}"
-
-        return "Terminal launch failed for an unknown reason."
     
     
 
