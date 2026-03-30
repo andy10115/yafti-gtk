@@ -17,7 +17,6 @@ APP_ID = 'io.github.ublue_os.yafti_gtk'
 APP_TITLE = 'Bazzite Portal'
 DEFAULT_WINDOW_WIDTH = 800
 DEFAULT_WINDOW_HEIGHT = 600
-TERMINAL_CHECK_TIMEOUT = 2
  
 
 
@@ -66,6 +65,28 @@ def setup_theme():
     settings = Gtk.Settings.get_default()
     if settings:
         settings.set_property('gtk-application-prefer-dark-theme', True)
+
+
+def build_child_environment():
+    """Avoid leaking forced GTK theme overrides into launched apps."""
+    child_env = os.environ.copy()
+    child_env.pop('GTK_THEME', None)
+    return child_env
+
+
+def build_terminal_command(script):
+    """Return the default terminal launcher command."""
+    return [
+        "xdg-terminal-exec",
+        f"--app-id={APP_ID}",
+        f"--title={APP_TITLE}",
+        "--",
+        "bash",
+        "--noprofile",
+        "--norc",
+        "-lc",
+        script,
+    ]
 
 
 class YaftiGTK(Gtk.Window):
@@ -258,46 +279,19 @@ class YaftiGTK(Gtk.Window):
         show_error_dialog(
             self,
             "No terminal available",
-            "Could not launch a terminal to run the script.\n\nPlease install a terminal emulator or run the following command manually:\n\n" + script
+            "Could not open a terminal automatically.\n\nPlease make sure a default terminal launcher is available, or run the following command manually:\n\n" + script
         )
 
     def launch_terminal(self, script):
         """Attempt to run a command in a terminal. Returns True if launched."""
-        candidate_terminals = [
-            "ptyxis",
-            "konsole",
-            "gnome-terminal",
-            "xterm",
-        ]
-        
-        for terminal in candidate_terminals:
-            try:
-                # First check if terminal exists on PATH
-                check = subprocess.run(
-                    ["which", terminal],
-                    capture_output=True,
-                    timeout=TERMINAL_CHECK_TIMEOUT
-                )
-                if check.returncode != 0:
-                    continue  # Terminal not found, try next
-                    
-                # Terminal exists, launch it
-                cmd = [
-                    terminal,
-                    "--",
-                    "bash",
-                    "--noprofile",
-                    "--norc",
-                    "-lc",
-                    script,
-                ]
-                subprocess.Popen(cmd)
-                return True
-            except Exception as e:
-                print(f"Terminal '{terminal}' launch failed: {e}")
-                continue
-        
-        print("Terminal launch failed: no suitable terminal found.")
+        try:
+            subprocess.Popen(build_terminal_command(script), env=build_child_environment())
+            return True
+        except FileNotFoundError:
+            print("Could not open a terminal (xdg-terminal-exec was not found).")
+        except Exception as e:
+            print(f"Terminal launch failed: {e}")
+
         return False
     
     
