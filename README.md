@@ -23,7 +23,8 @@ sudo dnf install bazzite-portal
 
 The application requires a YAML configuration file path as a command-line argument.
 
-Action buttons open commands in your system's default terminal through `xdg-terminal-exec`.
+One-shot actions open commands in your system's default terminal through `xdg-terminal-exec`.
+Actions with options can define a modal with explicit buttons and a headless status check.
 
 ### On Bazzite (default config)
 
@@ -43,7 +44,9 @@ The installed desktop file automatically launches with the default Bazzite confi
 
 ## Configuration
 
-The app reads a `yafti.yml` configuration file to populate tabs and actions. The YAML file should follow this structure:
+The app reads a `yafti.yml` configuration file to populate tabs and actions.
+
+One-shot actions launch directly in a terminal:
 
 ```yaml
 screens:
@@ -53,3 +56,34 @@ screens:
         description: "Optional description"
         script: "command to run"
 ```
+
+Managed actions open a modal instead. The modal runs `status_script` headlessly, then shows the configured buttons:
+
+```yaml
+screens:
+  - title: "Category Name"
+    actions:
+      - id: "sunshine"
+        title: "Sunshine"
+        description: "A self-hosted game stream host for Moonlight"
+        status_script: |
+          if systemctl is-enabled --user app-dev.lizardbyte.app.Sunshine.service >/dev/null 2>&1; then
+            echo enable
+          else
+            echo disable
+          fi
+        options:
+          - id: "enable"
+            label: "Enable"
+            script: "ujust setup-sunshine enable"
+          - id: "disable"
+            label: "Disable"
+            script: "ujust setup-sunshine disable"
+```
+
+Rules:
+
+- Actions with `options` or `status_script` use the modal flow.
+- Actions with only `script` launch directly in a terminal.
+- `status_script` should print a short stable status string such as `enable`, `disable`, or `install-beta`.
+- Modal button highlighting matches the returned status string against the option `id`.

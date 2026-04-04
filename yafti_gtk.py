@@ -3,20 +3,23 @@
 Yafti GTK - A simple GTK GUI for running scripts from yafti.yml
 """
 
-import gi
-import yaml
 import subprocess
 import sys
+import threading
+
+import gi
+import yaml
 
 gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk, GLib
+from gi.repository import GLib, Gtk
 
 # Constants
 APP_ID = 'io.github.ublue_os.yafti_gtk'
 APP_TITLE = 'Bazzite Portal'
 DEFAULT_WINDOW_WIDTH = 800
 DEFAULT_WINDOW_HEIGHT = 600
- 
+STATUS_TIMEOUT_SECONDS = 3
+ACTION_DIALOG_WIDTH = 420
 
 
 def set_widget_margins(widget, top=10, bottom=10, start=10, end=10):
@@ -57,6 +60,7 @@ def initialize_gtk():
     except Exception as e:
         print(f"Warning: Could not set app icon: {e}")
 
+
 def build_terminal_command(script):
     """Return the default terminal launcher command."""
     return [
@@ -72,21 +76,38 @@ def build_terminal_command(script):
     ]
 
 
+def build_headless_command(script):
+    """Return the non-interactive command used for status checks."""
+    return [
+        "bash",
+        "--noprofile",
+        "--norc",
+        "-lc",
+        script,
+    ]
+
+
+def escape_markup(text):
+    """Escape text before using it in a GTK markup label."""
+    return GLib.markup_escape_text(text or "")
+
+
 class YaftiGTK(Gtk.Window):
     def __init__(self, config_file='yafti.yml'):
         super().__init__(title=APP_TITLE)
         self.set_default_size(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
         self.set_border_width(10)
-        
+        self.active_dialog_state = None
+
         # Load YAML configuration
         self.config = self.load_config(config_file)
         self.screens = self.config.get('screens', [])
         self.actions_index = self._build_actions_index()
-        
+
         # Create main container
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.add(vbox)
-        
+
         # Search bar at the top
         search_entry = Gtk.SearchEntry()
         search_entry.set_placeholder_text("Search Apps and Actions")
@@ -97,7 +118,7 @@ class YaftiGTK(Gtk.Window):
         # Notebook (tabs) directly below search
         self.notebook = Gtk.Notebook()
         self.notebook.set_scrollable(True)
-        
+
         # Add tabs for each screen from YAML
         for screen in self.screens:
             page = self.create_screen_page(screen)
@@ -108,10 +129,10 @@ class YaftiGTK(Gtk.Window):
         self.content_stack = Gtk.Stack()
         self.content_stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
         self.content_stack.set_transition_duration(150)
-        
+
         # Add notebook to stack
         self.content_stack.add_named(self.notebook, "tabs")
-        
+
         # Search results page
         search_scrolled = Gtk.ScrolledWindow()
         search_scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
@@ -120,17 +141,18 @@ class YaftiGTK(Gtk.Window):
         self.search_results_box = results_box
         search_scrolled.add(results_box)
         self.content_stack.add_named(search_scrolled, "search")
-        
+
         # Start with tabs visible
         self.content_stack.set_visible_child_name("tabs")
-        
+
         vbox.pack_start(self.content_stack, True, True, 0)
-        
+        self.connect("focus-in-event", self.on_window_focus_in)
+
     def load_config(self, config_file):
-        """Load and parse the YAML configuration file"""
+        """Load and parse the YAML configuration file."""
         try:
             with open(config_file, 'r') as f:
-                return yaml.safe_load(f)
+                return yaml.safe_load(f) or {}
         except FileNotFoundError:
             show_error_dialog(
                 self,
@@ -141,49 +163,39 @@ class YaftiGTK(Gtk.Window):
         except yaml.YAMLError as e:
             show_error_dialog(self, "YAML parsing error", str(e))
             sys.exit(1)
-    
+
     def create_screen_page(self, screen):
-        """Create a page for a screen with all its actions"""
-        # Create scrolled window
+        """Create a page for a screen with all its actions."""
         scrolled = Gtk.ScrolledWindow()
         scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
-        
-        # Create main box for the page
+
         page_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         set_widget_margins(page_box, 10, 10, 10, 10)
-        
-        # Create action items
+
         for action in screen.get('actions', []):
             action_box = self.create_action_item(action)
             page_box.pack_start(action_box, False, False, 0)
-        
+
         scrolled.add(page_box)
         return scrolled
-    
+
     def create_action_item(self, action):
-        """Create a clickable action item"""
-        # Create a button for the action
+        """Create a clickable action item."""
         button = Gtk.Button()
         button.set_relief(Gtk.ReliefStyle.NONE)
-        
-        # Create box for button content
+        button.set_hexpand(True)
+        button.set_halign(Gtk.Align.FILL)
+
         button_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        set_widget_margins(button_box, 5, 5, 5, 5)
-        
-        # Add icon (play button)
-        icon = Gtk.Image.new_from_icon_name("media-playback-start", Gtk.IconSize.BUTTON)
-        button_box.pack_start(icon, False, False, 0)
-        
-        # Create text box
+        set_widget_margins(button_box, 8, 8, 8, 8)
+
         text_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-        
-        # Title label
+
         title_label = Gtk.Label()
-        title_label.set_markup(f"<b>{action.get('title', 'Action')}</b>")
+        title_label.set_markup(f"<b>{escape_markup(action.get('title', 'Action'))}</b>")
         title_label.set_xalign(0)
         text_box.pack_start(title_label, False, False, 0)
-        
-        # Description label
+
         if action.get('description'):
             desc_label = Gtk.Label(label=action['description'])
             desc_label.set_xalign(0)
@@ -191,19 +203,15 @@ class YaftiGTK(Gtk.Window):
             desc_label.set_max_width_chars(60)
             desc_label.get_style_context().add_class('dim-label')
             text_box.pack_start(desc_label, False, False, 0)
-        
+
         button_box.pack_start(text_box, True, True, 0)
         button.add(button_box)
-        
-        # Connect click event
-        script = action.get('script', '')
-        button.connect("clicked", self.on_action_clicked, script)
-        
-        # Add frame around button
+        button.connect("clicked", self.on_action_clicked, action)
+
         frame = Gtk.Frame()
         frame.set_shadow_type(Gtk.ShadowType.IN)
         frame.add(button)
-        
+
         return frame
 
     def _build_actions_index(self):
@@ -213,6 +221,20 @@ class YaftiGTK(Gtk.Window):
             for action in screen.get('actions', []):
                 index.append({'action': action})
         return index
+
+    def get_action_options(self, action):
+        """Return explicit modal options from the config."""
+        options = action.get('options')
+        if isinstance(options, list) and options:
+            return options
+
+        return []
+
+    def action_uses_modal(self, action):
+        """Return True when the action should open the management modal."""
+        if self.get_action_options(action):
+            return True
+        return bool((action.get('status_script') or "").strip())
 
     def on_search_changed(self, entry):
         query = entry.get_text().strip()
@@ -230,9 +252,8 @@ class YaftiGTK(Gtk.Window):
             if lowered in title.lower() or lowered in desc.lower():
                 matches.append(item)
 
-        # Clear old results
         clear_container(self.search_results_box)
-        
+
         header = Gtk.Label()
         header.set_markup("<b>Search results</b>")
         header.set_xalign(0)
@@ -250,28 +271,258 @@ class YaftiGTK(Gtk.Window):
 
         self.search_results_box.show_all()
         self.content_stack.set_visible_child_name("search")
-    
-    def on_action_clicked(self, _button, script):
-        """Handle action button click - run script in terminal window"""
+
+    def on_action_clicked(self, _button, action):
+        """Open a management modal or run the action directly."""
+        if not self.action_uses_modal(action):
+            script = (action.get('script') or "").strip()
+            if not script:
+                return
+
+            error_message = self.launch_terminal(script)
+            if error_message is None:
+                return
+
+            show_error_dialog(
+                self,
+                "No terminal available",
+                "Could not open a terminal automatically.\n\n"
+                + error_message
+                + "\n\nYou can also run the following command manually:\n\n"
+                + script
+            )
+            return
+
+        dialog = Gtk.Dialog(title=action.get('title', 'Action'), transient_for=self, flags=0)
+        dialog.set_modal(True)
+        dialog.set_destroy_with_parent(True)
+        dialog.set_default_size(ACTION_DIALOG_WIDTH, -1)
+        dialog.set_resizable(False)
+
+        state = {
+            'action': action,
+            'dialog': dialog,
+            'dirty': False,
+            'loading': False,
+            'closed': False,
+            'request_id': 0,
+            'status_token': None,
+            'status_timed_out': False,
+        }
+        self.active_dialog_state = state
+
+        dialog.connect("destroy", self.on_dialog_destroy, state)
+        dialog.connect("focus-in-event", self.on_dialog_focus_in, state)
+
+        if (action.get('status_script') or "").strip():
+            self.refresh_action_dialog(state)
+        else:
+            self.build_action_dialog_content(state, None)
+
+    def on_dialog_destroy(self, _dialog, state):
+        """Clear the active dialog reference when the modal closes."""
+        state['closed'] = True
+        if self.active_dialog_state is state:
+            self.active_dialog_state = None
+
+    def on_window_focus_in(self, _widget, _event):
+        """Refresh the active dialog on focus return when needed."""
+        state = self.active_dialog_state
+        if self.should_refresh_dialog(state):
+            self.refresh_action_dialog(state)
+        return False
+
+    def on_dialog_focus_in(self, _dialog, _event, state):
+        """Refresh the focused dialog after a launched action when needed."""
+        if self.should_refresh_dialog(state):
+            self.refresh_action_dialog(state)
+        return False
+
+    def should_refresh_dialog(self, state):
+        """Return True when a dialog should refresh its status on focus return."""
+        if not state or state.get('closed'):
+            return False
+        if self.active_dialog_state is not state:
+            return False
+        if state.get('loading'):
+            return False
+        return state.get('dirty', False)
+
+    def refresh_action_dialog(self, state):
+        """Show the loading state and rerun the dialog status check."""
+        if not state or state.get('closed'):
+            return
+
+        action = state['action']
+        status_script = (action.get('status_script') or "").strip()
+        if not status_script:
+            self.build_action_dialog_content(state, None)
+            return
+
+        state['dirty'] = False
+        state['request_id'] += 1
+        request_id = state['request_id']
+        self.build_action_dialog_loading(state)
+
+        thread = threading.Thread(
+            target=self.run_status_check,
+            args=(state, request_id, status_script),
+            daemon=True,
+        )
+        thread.start()
+
+    def build_action_dialog_loading(self, state):
+        """Render the loading-only modal view."""
+        dialog = state['dialog']
+        content_area = dialog.get_content_area()
+        clear_container(content_area)
+        state['loading'] = True
+
+        loading_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        loading_box.set_halign(Gtk.Align.CENTER)
+        loading_box.set_valign(Gtk.Align.CENTER)
+        set_widget_margins(loading_box, 24, 24, 24, 24)
+
+        spinner = Gtk.Spinner()
+        spinner.start()
+        loading_box.pack_start(spinner, False, False, 0)
+
+        label = Gtk.Label(label="Loading...")
+        loading_box.pack_start(label, False, False, 0)
+
+        content_area.pack_start(loading_box, False, False, 0)
+        dialog.show_all()
+
+    def run_status_check(self, state, request_id, status_script):
+        """Run the modal status check in the background."""
+        status_token = "unknown"
+        status_timed_out = False
+
+        try:
+            result = subprocess.run(
+                build_headless_command(status_script),
+                capture_output=True,
+                text=True,
+                timeout=STATUS_TIMEOUT_SECONDS,
+                check=False,
+            )
+
+            if result.returncode == 0:
+                for line in result.stdout.splitlines():
+                    token = line.strip()
+                    if token:
+                        status_token = token
+                        break
+        except subprocess.TimeoutExpired:
+            status_timed_out = True
+        except Exception:
+            status_token = "unknown"
+
+        GLib.idle_add(
+            self.finish_status_check,
+            state,
+            request_id,
+            status_token,
+            status_timed_out,
+        )
+
+    def finish_status_check(self, state, request_id, status_token, status_timed_out):
+        """Update the dialog once the status check completes."""
+        if not state or state.get('closed'):
+            return False
+        if self.active_dialog_state is not state:
+            return False
+        if state.get('request_id') != request_id:
+            return False
+
+        self.build_action_dialog_content(state, status_token, status_timed_out)
+        return False
+
+    def build_action_dialog_content(self, state, status_token, status_timed_out=False):
+        """Render the full action dialog after status is known."""
+        dialog = state['dialog']
+        action = state['action']
+        content_area = dialog.get_content_area()
+        clear_container(content_area)
+
+        state['loading'] = False
+        state['status_token'] = status_token
+        state['status_timed_out'] = status_timed_out
+
+        root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        set_widget_margins(root, 16, 16, 16, 16)
+
+        title_label = Gtk.Label()
+        title_label.set_markup(f"<big><b>{escape_markup(action.get('title', 'Action'))}</b></big>")
+        title_label.set_xalign(0)
+        root.pack_start(title_label, False, False, 0)
+
+        description = action.get('description')
+        if description:
+            desc_label = Gtk.Label(label=description)
+            desc_label.set_xalign(0)
+            desc_label.set_line_wrap(True)
+            desc_label.get_style_context().add_class('dim-label')
+            root.pack_start(desc_label, False, False, 0)
+
+        if status_timed_out:
+            status_label = Gtk.Label()
+            status_label.set_markup(
+                "<span foreground='red'><b>Status check timed out. You can still run the action.</b></span>"
+            )
+            status_label.set_xalign(0)
+            status_label.set_line_wrap(True)
+            root.pack_start(status_label, False, False, 0)
+
+        actions_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        for option in self.get_action_options(action):
+            option_button = Gtk.Button(label=option.get('label', 'Run'))
+            option_button.set_hexpand(True)
+            option_button.set_halign(Gtk.Align.FILL)
+
+            if self.option_is_highlighted(option, status_token):
+                option_button.get_style_context().add_class("suggested-action")
+
+            option_button.connect("clicked", self.on_option_clicked, state, option)
+            actions_box.pack_start(option_button, False, False, 0)
+
+        root.pack_start(actions_box, False, False, 0)
+
+        close_button = Gtk.Button(label="Close")
+        close_button.connect("clicked", lambda _button: dialog.destroy())
+        root.pack_start(close_button, False, False, 0)
+
+        content_area.pack_start(root, False, False, 0)
+        dialog.show_all()
+
+    def option_is_highlighted(self, option, status_token):
+        """Return True when the option ID matches the current status token."""
+        if not status_token or status_token == "unknown":
+            return False
+
+        option_id = (option.get('id') or "").strip().lower()
+        current_status = status_token.strip().lower()
+        return bool(option_id) and option_id == current_status
+
+    def on_option_clicked(self, _button, state, option):
+        """Launch the selected modal action in a terminal."""
+        script = (option.get('script') or "").strip()
         if not script:
             return
 
-        clean_script = script.strip()
-        if not clean_script:
-            return
-
-        # Always try a terminal; if unavailable show an error
-        error_message = self.launch_terminal(clean_script)
+        error_message = self.launch_terminal(script)
         if error_message is None:
+            if (state['action'].get('status_script') or "").strip():
+                state['dirty'] = True
             return
 
         show_error_dialog(
-            self,
+            state['dialog'],
             "No terminal available",
             "Could not open a terminal automatically.\n\n"
             + error_message
             + "\n\nYou can also run the following command manually:\n\n"
-            + clean_script
+            + script
         )
 
     def launch_terminal(self, script):
@@ -283,8 +534,6 @@ class YaftiGTK(Gtk.Window):
             return "The default terminal launcher (xdg-terminal-exec) was not found."
         except Exception as e:
             return f"Terminal launch failed: {e}"
-    
-    
 
 
 def main():
@@ -293,9 +542,9 @@ def main():
         print(f"Usage: {APP_ID} CONFIG_FILE")
         print("Example: python3 yafti_gtk.py /path/to/yafti.yml")
         sys.exit(1)
-    
+
     config_file = sys.argv[1]
-    
+
     # Initialize GTK before creating the window.
     initialize_gtk()
 
