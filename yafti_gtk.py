@@ -10,7 +10,7 @@ import threading
 import gi
 import yaml
 
-gi.require_version('Gtk', '3.0')
+gi.require_version('Gtk', '4.0')
 from gi.repository import GLib, Gtk
 
 # Constants
@@ -40,7 +40,6 @@ def show_error_dialog(parent, title, message):
     """Display an error dialog with the given title and message."""
     dialog = Gtk.MessageDialog(
         transient_for=parent,
-        flags=0,
         message_type=Gtk.MessageType.ERROR,
         buttons=Gtk.ButtonsType.OK,
         text=title
@@ -53,7 +52,7 @@ def show_error_dialog(parent, title, message):
 def initialize_gtk():
     """Initialize GTK and application metadata."""
     GLib.set_prgname(APP_ID)
-    Gtk.init([])
+    Gtk.init()
 
     try:
         Gtk.Window.set_default_icon_name(APP_ID)
@@ -96,7 +95,6 @@ class YaftiGTK(Gtk.Window):
     def __init__(self, config_file='yafti.yml'):
         super().__init__(title=APP_TITLE)
         self.set_default_size(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
-        self.set_border_width(10)
         self.active_dialog_state = None
 
         # Load YAML configuration
@@ -105,15 +103,15 @@ class YaftiGTK(Gtk.Window):
         self.actions_index = self._build_actions_index()
 
         # Create main container
-        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-        self.add(vbox)
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.set_child(vbox)
 
         # Search bar at the top
         search_entry = Gtk.SearchEntry()
         search_entry.set_placeholder_text("Search Apps and Actions")
         set_widget_margins(search_entry, 4, 4, 4, 4)
         search_entry.connect("search-changed", self.on_search_changed)
-        vbox.pack_start(search_entry, False, False, 0)
+        vbox.append(search_entry)
 
         # Notebook (tabs) directly below search
         self.notebook = Gtk.Notebook()
@@ -136,17 +134,20 @@ class YaftiGTK(Gtk.Window):
         # Search results page
         search_scrolled = Gtk.ScrolledWindow()
         search_scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
-        results_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        results_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        results_box.set_vexpand(True)
         set_widget_margins(results_box, 10, 10, 10, 10)
         self.search_results_box = results_box
-        search_scrolled.add(results_box)
+        search_scrolled.set_child(results_box)
         self.content_stack.add_named(search_scrolled, "search")
 
         # Start with tabs visible
         self.content_stack.set_visible_child_name("tabs")
 
-        vbox.pack_start(self.content_stack, True, True, 0)
-        self.connect("focus-in-event", self.on_window_focus_in)
+        vbox.append(self.content_stack)
+
+        focus_controller = Gtk.EventControllerFocus.new()
+        focus_controller.connect("enter", self.on_window_focus_in)
 
     def load_config(self, config_file):
         """Load and parse the YAML configuration file."""
@@ -174,15 +175,14 @@ class YaftiGTK(Gtk.Window):
 
         for action in screen.get('actions', []):
             action_box = self.create_action_item(action)
-            page_box.pack_start(action_box, False, False, 0)
+            page_box.append(action_box)
 
-        scrolled.add(page_box)
+        scrolled.set_child(page_box)
         return scrolled
 
     def create_action_item(self, action):
         """Create a clickable action item."""
         button = Gtk.Button()
-        button.set_relief(Gtk.ReliefStyle.NONE)
         button.set_hexpand(True)
         button.set_halign(Gtk.Align.FILL)
 
@@ -194,23 +194,21 @@ class YaftiGTK(Gtk.Window):
         title_label = Gtk.Label()
         title_label.set_markup(f"<b>{escape_markup(action.get('title', 'Action'))}</b>")
         title_label.set_xalign(0)
-        text_box.pack_start(title_label, False, False, 0)
+        text_box.append(title_label)
 
         if action.get('description'):
             desc_label = Gtk.Label(label=action['description'])
             desc_label.set_xalign(0)
-            desc_label.set_line_wrap(True)
             desc_label.set_max_width_chars(60)
             desc_label.get_style_context().add_class('dim-label')
-            text_box.pack_start(desc_label, False, False, 0)
+            text_box.append(desc_label)
 
-        button_box.pack_start(text_box, True, True, 0)
-        button.add(button_box)
+        button_box.append(text_box)
+        button.set_child(button_box)
         button.connect("clicked", self.on_action_clicked, action)
 
         frame = Gtk.Frame()
-        frame.set_shadow_type(Gtk.ShadowType.IN)
-        frame.add(button)
+        frame.set_child(button)
 
         return frame
 
@@ -293,7 +291,7 @@ class YaftiGTK(Gtk.Window):
             )
             return
 
-        dialog = Gtk.Dialog(title=action.get('title', 'Action'), transient_for=self, flags=0)
+        dialog = Gtk.Dialog(title=action.get('title', 'Action'), transient_for=self)
         dialog.set_modal(True)
         dialog.set_destroy_with_parent(True)
         dialog.set_default_size(ACTION_DIALOG_WIDTH, -1)
@@ -312,7 +310,8 @@ class YaftiGTK(Gtk.Window):
         self.active_dialog_state = state
 
         dialog.connect("destroy", self.on_dialog_destroy, state)
-        dialog.connect("focus-in-event", self.on_dialog_focus_in, state)
+        focus_controller = Gtk.EventControllerFocus.new()
+        focus_controller.connect("enter", self.on_dialog_focus_in, state)
 
         if (action.get('status_script') or "").strip():
             self.refresh_action_dialog(state)
@@ -548,11 +547,14 @@ def main():
     # Initialize GTK before creating the window.
     initialize_gtk()
 
+    loop = GLib.MainLoop()
+
     # Create and show window
     win = YaftiGTK(config_file)
-    win.connect("destroy", Gtk.main_quit)
-    win.show_all()
-    Gtk.main()
+    win.connect("destroy", lambda *_: loop.quit())
+    win.show()
+
+    loop.run()
 
 
 if __name__ == '__main__':
