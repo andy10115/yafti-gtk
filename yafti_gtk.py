@@ -199,9 +199,9 @@ class YaftiGTK(Gtk.Window):
         if action.get('description'):
             desc_label = Gtk.Label(label=action['description'])
             desc_label.set_xalign(0)
+            desc_label.set_wrap(True)
             desc_label.set_max_width_chars(60)
             desc_label.get_style_context().add_class('dim-label')
-            desc_label.set_wrap(True)
             text_box.append(desc_label)
 
         button_box.append(text_box)
@@ -459,6 +459,7 @@ class YaftiGTK(Gtk.Window):
         if description:
             desc_label = Gtk.Label(label=description)
             desc_label.set_xalign(0)
+            desc_label.set_wrap(True)
             desc_label.get_style_context().add_class('dim-label')
             root.append(desc_label)
 
@@ -468,6 +469,7 @@ class YaftiGTK(Gtk.Window):
                 "<span foreground='red'><b>Status check timed out. You can still run the action.</b></span>"
             )
             status_label.set_xalign(0)
+            status_label.set_wrap(True)
             root.append(status_label)
 
         actions_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
