@@ -266,7 +266,7 @@ class YaftiGTK(Gtk.Window):
             empty.set_xalign(0)
             self.search_results_box.append(empty)
 
-        self.search_results_box.show()
+        self.search_results_box.set_visible(True)
         self.content_stack.set_visible_child_name("search")
 
     def on_action_clicked(self, _button, action):
@@ -389,7 +389,7 @@ class YaftiGTK(Gtk.Window):
         loading_box.append(label)
 
         content_area.append(loading_box)
-        dialog.show()
+        dialog.set_visible(True)
 
     def run_status_check(self, state, request_id, status_script):
         """Run the modal status check in the background."""
@@ -489,7 +489,7 @@ class YaftiGTK(Gtk.Window):
         root.append(close_button)
 
         content_area.append(root)
-        dialog.show()
+        dialog.set_visible(True)
 
     def option_is_highlighted(self, option, status_token):
         """Return True when the option ID matches the current status token."""
@@ -549,7 +549,7 @@ def main():
     # Create and show window
     win = YaftiGTK(config_file)
     win.connect("destroy", lambda *_: loop.quit())
-    win.show()
+    win.set_visible(True)
 
     loop.run()
 
