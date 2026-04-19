@@ -548,7 +548,7 @@ def main():
 
     # Create and show window
     win = YaftiGTK(config_file)
-    win.connect("destroy", lambda *_: loop.quit())
+    win.connect("close-request", lambda *_: loop.quit())
     win.set_visible(True)
 
     loop.run()
