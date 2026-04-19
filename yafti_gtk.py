@@ -103,7 +103,7 @@ class YaftiGTK(Gtk.Window):
         self.actions_index = self._build_actions_index()
 
         # Create main container
-        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.set_child(vbox)
 
         # Search bar at the top
@@ -134,7 +134,7 @@ class YaftiGTK(Gtk.Window):
         # Search results page
         search_scrolled = Gtk.ScrolledWindow()
         search_scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
-        results_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        results_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         results_box.set_vexpand(True)
         set_widget_margins(results_box, 10, 10, 10, 10)
         self.search_results_box = results_box
@@ -201,6 +201,7 @@ class YaftiGTK(Gtk.Window):
             desc_label.set_xalign(0)
             desc_label.set_max_width_chars(60)
             desc_label.get_style_context().add_class('dim-label')
+            desc_label.set_wrap(True)
             text_box.append(desc_label)
 
         button_box.append(text_box)
