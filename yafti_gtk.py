@@ -32,8 +32,8 @@ def set_widget_margins(widget, top=10, bottom=10, start=10, end=10):
 
 def clear_container(container):
     """Remove all children from a container widget."""
-    for child in container.get_children():
-        container.remove(child)
+    while container.get_first_child() is not None:
+        container.remove(container.get_first_child())
 
 
 def show_error_dialog(parent, title, message):
@@ -255,19 +255,17 @@ class YaftiGTK(Gtk.Window):
         header = Gtk.Label()
         header.set_markup("<b>Search results</b>")
         header.set_xalign(0)
-        self.search_results_box.pack_start(header, False, False, 0)
+        self.search_results_box.append(header)
 
         if matches:
             for item in matches:
-                self.search_results_box.pack_start(
-                    self.create_action_item(item['action']), False, False, 0
-                )
+                self.search_results_box.append(self.create_action_item(item['action']))
         else:
             empty = Gtk.Label(label="No matches found")
             empty.set_xalign(0)
-            self.search_results_box.pack_start(empty, False, False, 0)
+            self.search_results_box.append(empty)
 
-        self.search_results_box.show_all()
+        self.search_results_box.show()
         self.content_stack.set_visible_child_name("search")
 
     def on_action_clicked(self, _button, action):
@@ -384,13 +382,13 @@ class YaftiGTK(Gtk.Window):
 
         spinner = Gtk.Spinner()
         spinner.start()
-        loading_box.pack_start(spinner, False, False, 0)
+        loading_box.append(spinner)
 
         label = Gtk.Label(label="Loading...")
-        loading_box.pack_start(label, False, False, 0)
+        loading_box.append(label)
 
-        content_area.pack_start(loading_box, False, False, 0)
-        dialog.show_all()
+        content_area.append(loading_box)
+        dialog.show()
 
     def run_status_check(self, state, request_id, status_script):
         """Run the modal status check in the background."""
@@ -454,15 +452,14 @@ class YaftiGTK(Gtk.Window):
         title_label = Gtk.Label()
         title_label.set_markup(f"<big><b>{escape_markup(action.get('title', 'Action'))}</b></big>")
         title_label.set_xalign(0)
-        root.pack_start(title_label, False, False, 0)
+        root.append(title_label)
 
         description = action.get('description')
         if description:
             desc_label = Gtk.Label(label=description)
             desc_label.set_xalign(0)
-            desc_label.set_line_wrap(True)
             desc_label.get_style_context().add_class('dim-label')
-            root.pack_start(desc_label, False, False, 0)
+            root.append(desc_label)
 
         if status_timed_out:
             status_label = Gtk.Label()
@@ -470,8 +467,7 @@ class YaftiGTK(Gtk.Window):
                 "<span foreground='red'><b>Status check timed out. You can still run the action.</b></span>"
             )
             status_label.set_xalign(0)
-            status_label.set_line_wrap(True)
-            root.pack_start(status_label, False, False, 0)
+            root.append(status_label)
 
         actions_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         for option in self.get_action_options(action):
@@ -483,16 +479,16 @@ class YaftiGTK(Gtk.Window):
                 option_button.get_style_context().add_class("suggested-action")
 
             option_button.connect("clicked", self.on_option_clicked, state, option)
-            actions_box.pack_start(option_button, False, False, 0)
+            actions_box.append(option_button)
 
-        root.pack_start(actions_box, False, False, 0)
+        root.append(actions_box)
 
         close_button = Gtk.Button(label="Close")
         close_button.connect("clicked", lambda _button: dialog.destroy())
-        root.pack_start(close_button, False, False, 0)
+        root.append(close_button)
 
-        content_area.pack_start(root, False, False, 0)
-        dialog.show_all()
+        content_area.append(root)
+        dialog.show()
 
     def option_is_highlighted(self, option, status_token):
         """Return True when the option ID matches the current status token."""
