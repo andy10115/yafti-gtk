@@ -3,7 +3,7 @@
 ![Bazzite Portal Screenshot](assets/demo.gif)
 
 
-A GTK3 interface for the Bazzite Portal, providing quick access to various useful scripts, fixes, and QOL tweaks for the terminal averse.
+A GTK4 interface for the Bazzite Portal, providing quick access to various useful scripts, fixes, and QOL tweaks for the terminal averse.
 
 On installed systems, the default configuration file is located at:
 ```

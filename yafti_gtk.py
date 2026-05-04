@@ -146,8 +146,10 @@ class YaftiGTK(Gtk.Window):
 
         vbox.append(self.content_stack)
 
+        self.connect("notify::is-active", self.on_window_active_changed)
         focus_controller = Gtk.EventControllerFocus.new()
         focus_controller.connect("enter", self.on_window_focus_in)
+        self.add_controller(focus_controller)
 
     def load_config(self, config_file):
         """Load and parse the YAML configuration file."""
@@ -309,8 +311,10 @@ class YaftiGTK(Gtk.Window):
         self.active_dialog_state = state
 
         dialog.connect("destroy", self.on_dialog_destroy, state)
+        dialog.connect("notify::is-active", self.on_dialog_active_changed, state)
         focus_controller = Gtk.EventControllerFocus.new()
         focus_controller.connect("enter", self.on_dialog_focus_in, state)
+        dialog.add_controller(focus_controller)
 
         if (action.get('status_script') or "").strip():
             self.refresh_action_dialog(state)
@@ -323,18 +327,34 @@ class YaftiGTK(Gtk.Window):
         if self.active_dialog_state is state:
             self.active_dialog_state = None
 
-    def on_window_focus_in(self, _widget, _event):
+    def on_window_active_changed(self, window, _pspec):
+        """Refresh the active dialog when the portal window becomes active."""
+        if window.get_property("is-active"):
+            self.refresh_active_dialog_if_needed()
+
+    def on_dialog_active_changed(self, dialog, _pspec, state):
+        """Refresh the dialog when it becomes active again."""
+        if dialog.get_property("is-active"):
+            self.refresh_dialog_if_needed(state)
+
+    def on_window_focus_in(self, _controller):
         """Refresh the active dialog on focus return when needed."""
-        state = self.active_dialog_state
-        if self.should_refresh_dialog(state):
-            self.refresh_action_dialog(state)
+        self.refresh_active_dialog_if_needed()
         return False
 
-    def on_dialog_focus_in(self, _dialog, _event, state):
+    def on_dialog_focus_in(self, _controller, state):
         """Refresh the focused dialog after a launched action when needed."""
+        self.refresh_dialog_if_needed(state)
+        return False
+
+    def refresh_active_dialog_if_needed(self):
+        """Refresh the active dialog if a launched action may have changed status."""
+        self.refresh_dialog_if_needed(self.active_dialog_state)
+
+    def refresh_dialog_if_needed(self, state):
+        """Refresh a dialog when its status is dirty."""
         if self.should_refresh_dialog(state):
             self.refresh_action_dialog(state)
-        return False
 
     def should_refresh_dialog(self, state):
         """Return True when a dialog should refresh its status on focus return."""
