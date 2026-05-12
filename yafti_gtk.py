@@ -203,7 +203,7 @@ class YaftiGTK(Gtk.Window):
             desc_label.set_xalign(0)
             desc_label.set_wrap(True)
             desc_label.set_max_width_chars(60)
-            desc_label.get_style_context().add_class('dim-label')
+            desc_label.add_css_class('dim-label')
             text_box.append(desc_label)
 
         button_box.append(text_box)
@@ -480,7 +480,7 @@ class YaftiGTK(Gtk.Window):
             desc_label = Gtk.Label(label=description)
             desc_label.set_xalign(0)
             desc_label.set_wrap(True)
-            desc_label.get_style_context().add_class('dim-label')
+            desc_label.add_css_class('dim-label')
             root.append(desc_label)
 
         if status_timed_out:
@@ -499,7 +499,7 @@ class YaftiGTK(Gtk.Window):
             option_button.set_halign(Gtk.Align.FILL)
 
             if self.option_is_highlighted(option, status_token):
-                option_button.get_style_context().add_class("suggested-action")
+                option_button.add_css_class("suggested-action")
 
             option_button.connect("clicked", self.on_option_clicked, state, option)
             actions_box.append(option_button)
