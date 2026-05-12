@@ -11,7 +11,8 @@ import gi
 import yaml
 
 gi.require_version('Gtk', '4.0')
-from gi.repository import GLib, Gtk
+gi.require_version('Adw', '1')
+from gi.repository import GLib, Gtk, Adw
 
 # Constants
 APP_ID = 'io.github.ublue_os.yafti_gtk'
@@ -50,10 +51,11 @@ def show_error_dialog(parent, title, message):
 
 
 def initialize_gtk():
-    """Initialize GTK and application metadata."""
+    """Initialize GTK, Adwaita, and application metadata."""
     GLib.set_prgname(APP_ID)
     Gtk.init()
-
+    Adw.init()
+    
     try:
         Gtk.Window.set_default_icon_name(APP_ID)
     except Exception as e:
