@@ -33,8 +33,13 @@ def set_widget_margins(widget, top=10, bottom=10, start=10, end=10):
 
 def clear_container(container):
     """Remove all children from a container widget."""
-    while container.get_first_child() is not None:
-        container.remove(container.get_first_child())
+    if hasattr(container, 'remove'):
+        # For regular containers (Box, etc.)
+        while container.get_first_child() is not None:
+            container.remove(container.get_first_child())
+    elif hasattr(container, 'set_child'):
+        # For dialogs and single-child containers
+        container.set_child(None)
 
 
 def show_error_dialog(parent, title, message):
@@ -394,8 +399,7 @@ class YaftiGTK(Gtk.Window):
     def build_action_dialog_loading(self, state):
         """Render the loading-only modal view."""
         dialog = state['dialog']
-        content_area = dialog.get_content_area()
-        clear_container(content_area)
+        clear_container(dialog)
         state['loading'] = True
 
         loading_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -410,7 +414,7 @@ class YaftiGTK(Gtk.Window):
         label = Gtk.Label(label="Loading...")
         loading_box.append(label)
 
-        content_area.append(loading_box)
+        dialog.set_child(loading_box)
         dialog.set_visible(True)
 
     def run_status_check(self, state, request_id, status_script):
@@ -462,8 +466,7 @@ class YaftiGTK(Gtk.Window):
         """Render the full action dialog after status is known."""
         dialog = state['dialog']
         action = state['action']
-        content_area = dialog.get_content_area()
-        clear_container(content_area)
+        clear_container(dialog)
 
         state['loading'] = False
         state['status_token'] = status_token
@@ -512,7 +515,7 @@ class YaftiGTK(Gtk.Window):
         close_button.connect("clicked", lambda _button: dialog.destroy())
         root.append(close_button)
 
-        content_area.append(root)
+        dialog.set_child(root)
         dialog.set_visible(True)
 
     def option_is_highlighted(self, option, status_token):
