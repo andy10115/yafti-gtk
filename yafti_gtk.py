@@ -11,7 +11,8 @@ import gi
 import yaml
 
 gi.require_version('Gtk', '4.0')
-from gi.repository import GLib, Gtk
+gi.require_version('Adw', '1')
+from gi.repository import GLib, Gtk, Adw
 
 # Constants
 APP_ID = 'io.github.ublue_os.yafti_gtk'
@@ -32,8 +33,13 @@ def set_widget_margins(widget, top=10, bottom=10, start=10, end=10):
 
 def clear_container(container):
     """Remove all children from a container widget."""
-    while container.get_first_child() is not None:
-        container.remove(container.get_first_child())
+    if hasattr(container, 'remove'):
+        # For regular containers (Box, etc.)
+        while container.get_first_child() is not None:
+            container.remove(container.get_first_child())
+    elif hasattr(container, 'set_child'):
+        # For dialogs and single-child containers
+        container.set_child(None)
 
 
 def show_error_dialog(parent, title, message):
@@ -50,10 +56,11 @@ def show_error_dialog(parent, title, message):
 
 
 def initialize_gtk():
-    """Initialize GTK and application metadata."""
+    """Initialize GTK, Adwaita, and application metadata."""
     GLib.set_prgname(APP_ID)
     Gtk.init()
-
+    Adw.init()
+    
     try:
         Gtk.Window.set_default_icon_name(APP_ID)
     except Exception as e:
@@ -203,7 +210,7 @@ class YaftiGTK(Gtk.Window):
             desc_label.set_xalign(0)
             desc_label.set_wrap(True)
             desc_label.set_max_width_chars(60)
-            desc_label.get_style_context().add_class('dim-label')
+            desc_label.add_css_class('dim-label')
             text_box.append(desc_label)
 
         button_box.append(text_box)
@@ -392,8 +399,7 @@ class YaftiGTK(Gtk.Window):
     def build_action_dialog_loading(self, state):
         """Render the loading-only modal view."""
         dialog = state['dialog']
-        content_area = dialog.get_content_area()
-        clear_container(content_area)
+        clear_container(dialog)
         state['loading'] = True
 
         loading_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -408,7 +414,7 @@ class YaftiGTK(Gtk.Window):
         label = Gtk.Label(label="Loading...")
         loading_box.append(label)
 
-        content_area.append(loading_box)
+        dialog.set_child(loading_box)
         dialog.set_visible(True)
 
     def run_status_check(self, state, request_id, status_script):
@@ -460,8 +466,7 @@ class YaftiGTK(Gtk.Window):
         """Render the full action dialog after status is known."""
         dialog = state['dialog']
         action = state['action']
-        content_area = dialog.get_content_area()
-        clear_container(content_area)
+        clear_container(dialog)
 
         state['loading'] = False
         state['status_token'] = status_token
@@ -480,7 +485,7 @@ class YaftiGTK(Gtk.Window):
             desc_label = Gtk.Label(label=description)
             desc_label.set_xalign(0)
             desc_label.set_wrap(True)
-            desc_label.get_style_context().add_class('dim-label')
+            desc_label.add_css_class('dim-label')
             root.append(desc_label)
 
         if status_timed_out:
@@ -499,7 +504,7 @@ class YaftiGTK(Gtk.Window):
             option_button.set_halign(Gtk.Align.FILL)
 
             if self.option_is_highlighted(option, status_token):
-                option_button.get_style_context().add_class("suggested-action")
+                option_button.add_css_class("suggested-action")
 
             option_button.connect("clicked", self.on_option_clicked, state, option)
             actions_box.append(option_button)
@@ -510,7 +515,7 @@ class YaftiGTK(Gtk.Window):
         close_button.connect("clicked", lambda _button: dialog.destroy())
         root.append(close_button)
 
-        content_area.append(root)
+        dialog.set_child(root)
         dialog.set_visible(True)
 
     def option_is_highlighted(self, option, status_token):
