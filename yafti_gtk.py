@@ -1,8 +1,9 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """
 Yafti GTK - A simple GTK GUI for running scripts from yafti.yml
 """
 
+import os
 import subprocess
 import sys
 import threading
@@ -17,10 +18,22 @@ from gi.repository import GLib, Gtk, Adw
 # Constants
 APP_ID = 'io.github.ublue_os.yafti_gtk'
 APP_TITLE = 'Bazzite Portal'
-DEFAULT_WINDOW_WIDTH = 800
+DEFAULT_WINDOW_WIDTH = 815
 DEFAULT_WINDOW_HEIGHT = 600
 STATUS_TIMEOUT_SECONDS = 3
 ACTION_DIALOG_WIDTH = 420
+AUTOSTART_DIR = os.path.expanduser('~/.config/autostart')
+AUTOSTART_FILE = os.path.join(AUTOSTART_DIR, 'bazzite-portal.desktop')
+AUTOSTART_CONTENT = """\
+[Desktop Entry]
+Name=Bazzite Portal
+Comment=Helps you setup Bazzite
+Exec=yafti_gtk.py /usr/share/yafti/yafti.yml
+Icon=io.github.ublue_os.yafti_gtk
+Terminal=false
+Type=Application
+X-GNOME-Autostart-enabled=true
+"""
 
 
 def set_widget_margins(widget, top=10, bottom=10, start=10, end=10):
@@ -60,7 +73,7 @@ def initialize_gtk():
     GLib.set_prgname(APP_ID)
     Gtk.init()
     Adw.init()
-    
+
     try:
         Gtk.Window.set_default_icon_name(APP_ID)
     except Exception as e:
@@ -153,10 +166,52 @@ class YaftiGTK(Gtk.Window):
 
         vbox.append(self.content_stack)
 
+        # Bottom bar with autostart toggle
+        bottom_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        set_widget_margins(bottom_bar, top=6, bottom=4, start=6, end=6)
+
+        spacer = Gtk.Box()
+        spacer.set_hexpand(True)
+        bottom_bar.append(spacer)
+
+        autostart_label = Gtk.Label(label="Launch at startup")
+        autostart_label.add_css_class('dim-label')
+        bottom_bar.append(autostart_label)
+
+        self.autostart_switch = Gtk.Switch()
+        self.autostart_switch.set_active(self._autostart_enabled())
+        self.autostart_switch.set_valign(Gtk.Align.CENTER)
+        self.autostart_switch.connect("notify::active", self._on_autostart_toggled)
+        bottom_bar.append(self.autostart_switch)
+
+        vbox.append(bottom_bar)
+
         self.connect("notify::is-active", self.on_window_active_changed)
         focus_controller = Gtk.EventControllerFocus.new()
         focus_controller.connect("enter", self.on_window_focus_in)
         self.add_controller(focus_controller)
+
+    def _autostart_enabled(self):
+        """Check if the autostart desktop file exists."""
+        return os.path.isfile(AUTOSTART_FILE)
+
+    def _on_autostart_toggled(self, switch, _param):
+        """Write or remove the autostart desktop file based on switch state."""
+        if switch.get_active():
+            try:
+                os.makedirs(AUTOSTART_DIR, exist_ok=True)
+                with open(AUTOSTART_FILE, 'w') as f:
+                    f.write(AUTOSTART_CONTENT)
+            except Exception as e:
+                show_error_dialog(self, "Autostart error", f"Could not create autostart entry:\n{e}")
+                switch.set_active(False)
+        else:
+            try:
+                if os.path.isfile(AUTOSTART_FILE):
+                    os.remove(AUTOSTART_FILE)
+            except Exception as e:
+                show_error_dialog(self, "Autostart error", f"Could not remove autostart entry:\n{e}")
+                switch.set_active(True)
 
     def load_config(self, config_file):
         """Load and parse the YAML configuration file."""
